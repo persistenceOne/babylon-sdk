@@ -1,0 +1,18 @@
+syntax = "proto3";
+package babylonchain.babylon.v1beta1;
+
+import "babylonchain/babylon/v1beta1/babylon.proto";
+import "gogoproto/gogo.proto";
+import "amino/amino.proto";
+
+option go_package = "github.com/babylonchain/babylon-sdk/x/babylon/types";
+option (gogoproto.goproto_getters_all) = false;
+option (gogoproto.equal_all) = false;
+
+// GenesisState defines babylon module's genesis state.
+message GenesisState {
+  option (gogoproto.equal) = true;
+
+  Params params = 1
+      [ (gogoproto.nullable) = false, (amino.dont_omitempty) = true ];
+}
