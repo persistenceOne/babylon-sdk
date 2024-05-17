@@ -1,21 +1,11 @@
 package contract
 
-import wasmvmtypes "github.com/CosmWasm/wasmvm/types"
+// CustomMsg is a message sent from a smart contract to the Babylon module
+// TODO: implement
+type CustomMsg struct {
+	Test *TestMsg `json:"test,omitempty"`
+}
 
-type (
-	CustomMsg struct {
-		VirtualStake *VirtualStakeMsg `json:"virtual_stake,omitempty"`
-	}
-	VirtualStakeMsg struct {
-		Bond   *BondMsg   `json:"bond,omitempty"`
-		Unbond *UnbondMsg `json:"unbond,omitempty"`
-	}
-	BondMsg struct {
-		Amount    wasmvmtypes.Coin `json:"amount"`
-		Validator string           `json:"validator"`
-	}
-	UnbondMsg struct {
-		Amount    wasmvmtypes.Coin `json:"amount"`
-		Validator string           `json:"validator"`
-	}
-)
+type TestMsg struct {
+	Placeholder string `json:"placeholder,omitempty"`
+}

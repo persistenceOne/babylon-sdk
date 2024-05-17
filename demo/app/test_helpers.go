@@ -9,17 +9,18 @@ import (
 	"testing"
 	"time"
 
-	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
-	dbm "github.com/cometbft/cometbft-db"
-	abci "github.com/cometbft/cometbft/abci/types"
-	tmjson "github.com/cometbft/cometbft/libs/json"
-	"github.com/cometbft/cometbft/libs/log"
-	tmproto "github.com/cometbft/cometbft/proto/tendermint/types"
-	tmtypes "github.com/cometbft/cometbft/types"
-	"github.com/stretchr/testify/require"
-
+	"cosmossdk.io/log"
 	"cosmossdk.io/math"
-
+	pruningtypes "cosmossdk.io/store/pruning/types"
+	"cosmossdk.io/store/snapshots"
+	snapshottypes "cosmossdk.io/store/snapshots/types"
+	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
+	abci "github.com/cometbft/cometbft/abci/types"
+	"github.com/cometbft/cometbft/crypto/ed25519"
+	tmjson "github.com/cometbft/cometbft/libs/json"
+	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
+	tmtypes "github.com/cometbft/cometbft/types"
+	dbm "github.com/cosmos/cosmos-db"
 	bam "github.com/cosmos/cosmos-sdk/baseapp"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/flags"
@@ -30,12 +31,9 @@ import (
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	"github.com/cosmos/cosmos-sdk/server"
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
-	"github.com/cosmos/cosmos-sdk/snapshots"
-	snapshottypes "github.com/cosmos/cosmos-sdk/snapshots/types"
-	pruningtypes "github.com/cosmos/cosmos-sdk/store/pruning/types"
 	"github.com/cosmos/cosmos-sdk/testutil/mock"
 	"github.com/cosmos/cosmos-sdk/testutil/network"
-	simtestutil "github.com/cosmos/cosmos-sdk/testutil/sims"
+	simsutils "github.com/cosmos/cosmos-sdk/testutil/sims"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module/testutil"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
@@ -43,14 +41,16 @@ import (
 	minttypes "github.com/cosmos/cosmos-sdk/x/mint/types"
 	slashingtypes "github.com/cosmos/cosmos-sdk/x/slashing/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
+	"github.com/stretchr/testify/require"
 )
 
-// SetupOptions defines arguments that are passed into `ConsumerApp` constructor.
+// SetupOptions defines arguments that are passed into `Simapp` constructor.
 type SetupOptions struct {
-	Logger   log.Logger
-	DB       *dbm.MemDB
-	AppOpts  servertypes.AppOptions
-	WasmOpts []wasmkeeper.Option
+	Logger             log.Logger
+	DB                 *dbm.MemDB
+	InvCheckPeriod     uint
+	SkipUpgradeHeights map[int64]bool
+	AppOpts            servertypes.AppOptions
 }
 
 func setup(t testing.TB, chainID string, withGenesis bool, invCheckPeriod uint, opts ...wasmkeeper.Option) (*ConsumerApp, GenesisState) {
@@ -64,12 +64,12 @@ func setup(t testing.TB, chainID string, withGenesis bool, invCheckPeriod uint, 
 	snapshotStore, err := snapshots.NewStore(snapshotDB, snapshotDir)
 	require.NoError(t, err)
 
-	appOptions := make(simtestutil.AppOptionsMap, 0)
+	appOptions := make(simsutils.AppOptionsMap, 0)
 	appOptions[flags.FlagHome] = nodeHome // ensure unique folder
 	appOptions[server.FlagInvCheckPeriod] = invCheckPeriod
 	app := NewConsumerApp(log.NewNopLogger(), db, nil, true, appOptions, opts, bam.SetChainID(chainID), bam.SetSnapshot(snapshotStore, snapshottypes.SnapshotOptions{KeepRecent: 2}))
 	if withGenesis {
-		return app, NewDefaultGenesisState(app.AppCodec())
+		return app, app.DefaultGenesis()
 	}
 	return app, GenesisState{}
 }
@@ -90,10 +90,10 @@ func NewAppWithCustomOptions(t *testing.T, isCheckTx bool, options SetupOptions)
 	acc := authtypes.NewBaseAccount(senderPrivKey.PubKey().Address().Bytes(), senderPrivKey.PubKey(), 0, 0)
 	balance := banktypes.Balance{
 		Address: acc.GetAddress().String(),
-		Coins:   sdk.NewCoins(sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100000000000000))),
+		Coins:   sdk.NewCoins(sdk.NewCoin(sdk.DefaultBondDenom, math.NewInt(100000000000000))),
 	}
 
-	app := NewConsumerApp(options.Logger, options.DB, nil, true, options.AppOpts, options.WasmOpts)
+	app := NewConsumerApp(options.Logger, options.DB, nil, true, options.AppOpts, emptyWasmOptions)
 	genesisState := NewDefaultGenesisState(app.appCodec)
 	genesisState, err = GenesisStateWithValSet(app.AppCodec(), genesisState, valSet, []authtypes.GenesisAccount{acc}, balance)
 	require.NoError(t, err)
@@ -104,13 +104,18 @@ func NewAppWithCustomOptions(t *testing.T, isCheckTx bool, options SetupOptions)
 		require.NoError(t, err)
 
 		// Initialize the chain
-		app.InitChain(
-			abci.RequestInitChain{
+		consensusParams := simsutils.DefaultConsensusParams
+		initialHeight := app.LastBlockHeight() + 1
+		consensusParams.Abci = &cmtproto.ABCIParams{VoteExtensionsEnableHeight: initialHeight}
+		_, err = app.InitChain(
+			&abci.RequestInitChain{
 				Validators:      []abci.ValidatorUpdate{},
-				ConsensusParams: simtestutil.DefaultConsensusParams,
+				ConsensusParams: consensusParams,
 				AppStateBytes:   stateBytes,
+				InitialHeight:   initialHeight,
 			},
 		)
+		require.NoError(t, err)
 	}
 
 	return app
@@ -133,7 +138,7 @@ func Setup(t *testing.T, opts ...wasmkeeper.Option) *ConsumerApp {
 	acc := authtypes.NewBaseAccount(senderPrivKey.PubKey().Address().Bytes(), senderPrivKey.PubKey(), 0, 0)
 	balance := banktypes.Balance{
 		Address: acc.GetAddress().String(),
-		Coins:   sdk.NewCoins(sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100000000000000))),
+		Coins:   sdk.NewCoins(sdk.NewCoin(sdk.DefaultBondDenom, math.NewInt(100000000000000))),
 	}
 	chainID := "testing"
 	app := SetupWithGenesisValSet(t, valSet, []authtypes.GenesisAccount{acc}, chainID, opts, balance)
@@ -156,40 +161,27 @@ func SetupWithGenesisValSet(t *testing.T, valSet *tmtypes.ValidatorSet, genAccs 
 	require.NoError(t, err)
 
 	// init chain will set the validator set and initialize the genesis accounts
-	consensusParams := simtestutil.DefaultConsensusParams
-	consensusParams.Block.MaxGas = 100 * simtestutil.DefaultGenTxGas
-	app.InitChain(
-		abci.RequestInitChain{
-			ChainId:         chainID,
-			Validators:      []abci.ValidatorUpdate{},
-			ConsensusParams: consensusParams,
-			AppStateBytes:   stateBytes,
-		},
-	)
-	// commit genesis changes
-	app.Commit()
-
-	votes := make([]abci.VoteInfo, len(valSet.Validators))
-	for i, v := range valSet.Validators {
-		votes[i] = abci.VoteInfo{
-			Validator:       abci.Validator{Address: v.Address, Power: v.VotingPower},
-			SignedLastBlock: true,
-		}
-	}
-
-	app.BeginBlock(abci.RequestBeginBlock{
-		Header: tmproto.Header{
-			ChainID:            chainID,
-			Height:             app.LastBlockHeight() + 1,
-			AppHash:            app.LastCommitID().Hash,
-			Time:               time.Now().UTC(),
-			ValidatorsHash:     valSet.Hash(),
-			NextValidatorsHash: valSet.Hash(),
-		},
-		LastCommitInfo: abci.CommitInfo{
-			Votes: votes,
-		},
+	consensusParams := simsutils.DefaultConsensusParams
+	consensusParams.Block.MaxGas = 100 * simsutils.DefaultGenTxGas
+	// it is required that the VoteExtensionsEnableHeight > 0 to enable vote extension
+	initialHeight := app.LastBlockHeight() + 1
+	consensusParams.Abci = &cmtproto.ABCIParams{VoteExtensionsEnableHeight: initialHeight}
+	_, err = app.InitChain(&abci.RequestInitChain{
+		ChainId:         app.ChainID(),
+		Time:            time.Now().UTC(),
+		Validators:      []abci.ValidatorUpdate{},
+		ConsensusParams: consensusParams,
+		InitialHeight:   initialHeight,
+		AppStateBytes:   stateBytes,
 	})
+	require.NoError(t, err)
+
+	_, err = app.FinalizeBlock(&abci.RequestFinalizeBlock{
+		Height:             initialHeight,
+		Hash:               app.LastCommitID().Hash,
+		NextValidatorsHash: valSet.Hash(),
+	})
+	require.NoError(t, err)
 
 	return app
 }
@@ -219,7 +211,7 @@ func GenesisStateWithSingleValidator(t *testing.T, app *ConsumerApp) GenesisStat
 	balances := []banktypes.Balance{
 		{
 			Address: acc.GetAddress().String(),
-			Coins:   sdk.NewCoins(sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewInt(100000000000000))),
+			Coins:   sdk.NewCoins(sdk.NewCoin(sdk.DefaultBondDenom, math.NewInt(100000000000000))),
 		},
 	}
 
@@ -230,19 +222,30 @@ func GenesisStateWithSingleValidator(t *testing.T, app *ConsumerApp) GenesisStat
 	return genesisState
 }
 
-// AddTestAddrsIncremental constructs and returns accNum amount of accounts with an
+// AddTestAddrs constructs and returns accNum amount of accounts with an
 // initial balance of accAmt in random order
-func AddTestAddrsIncremental(app *ConsumerApp, ctx sdk.Context, accNum int, accAmt math.Int) []sdk.AccAddress {
-	return addTestAddrs(app, ctx, accNum, accAmt, simtestutil.CreateIncrementalAccounts)
-}
+func AddTestAddrs(app *ConsumerApp, ctx sdk.Context, accNum int, accAmt math.Int) ([]sdk.AccAddress, error) {
+	testAddrs := createRandomAccounts(accNum)
 
-func addTestAddrs(app *ConsumerApp, ctx sdk.Context, accNum int, accAmt math.Int, strategy simtestutil.GenerateAccountStrategy) []sdk.AccAddress {
-	testAddrs := strategy(accNum)
-
-	initCoins := sdk.NewCoins(sdk.NewCoin(app.StakingKeeper.BondDenom(ctx), accAmt))
+	bondDenom, err := app.StakingKeeper.BondDenom(ctx)
+	if err != nil {
+		return nil, err
+	}
+	initCoins := sdk.NewCoins(sdk.NewCoin(bondDenom, accAmt))
 
 	for _, addr := range testAddrs {
 		initAccountWithCoins(app, ctx, addr, initCoins)
+	}
+
+	return testAddrs, nil
+}
+
+// createRandomAccounts is a strategy used by addTestAddrs() in order to generated addresses in random order.
+func createRandomAccounts(accNum int) []sdk.AccAddress {
+	testAddrs := make([]sdk.AccAddress, accNum)
+	for i := 0; i < accNum; i++ {
+		pk := ed25519.GenPrivKey().PubKey()
+		testAddrs[i] = sdk.AccAddress(pk.Address())
 	}
 
 	return testAddrs
@@ -277,9 +280,9 @@ func NewTestNetworkFixture() network.TestFixture {
 	}
 	defer os.RemoveAll(dir)
 
-	app := NewConsumerApp(log.NewNopLogger(), dbm.NewMemDB(), nil, true, simtestutil.NewAppOptionsWithFlagHome(dir), emptyWasmOptions)
+	app := NewConsumerApp(log.NewNopLogger(), dbm.NewMemDB(), nil, true, simsutils.NewAppOptionsWithFlagHome(dir), emptyWasmOptions)
 	appCtr := func(val network.ValidatorI) servertypes.Application {
-		return NewConsumerApp(val.GetCtx().Logger, dbm.NewMemDB(), nil, true, simtestutil.NewAppOptionsWithFlagHome(val.GetCtx().Config.RootDir), emptyWasmOptions, bam.SetPruning(pruningtypes.NewPruningOptionsFromString(val.GetAppConfig().Pruning)), bam.SetMinGasPrices(val.GetAppConfig().MinGasPrices), bam.SetChainID(val.GetCtx().Viper.GetString(flags.FlagChainID)))
+		return NewConsumerApp(val.GetCtx().Logger, dbm.NewMemDB(), nil, true, simsutils.NewAppOptionsWithFlagHome(val.GetCtx().Config.RootDir), emptyWasmOptions, bam.SetPruning(pruningtypes.NewPruningOptionsFromString(val.GetAppConfig().Pruning)), bam.SetMinGasPrices(val.GetAppConfig().MinGasPrices), bam.SetChainID(val.GetCtx().Viper.GetString(flags.FlagChainID)))
 	}
 
 	return network.TestFixture{
@@ -299,12 +302,12 @@ func SignAndDeliverWithoutCommit(
 	t *testing.T, txCfg client.TxConfig, app *bam.BaseApp, msgs []sdk.Msg, fees sdk.Coins,
 	chainID string, accNums, accSeqs []uint64, priv ...cryptotypes.PrivKey,
 ) (sdk.GasInfo, *sdk.Result, error) {
-	tx, err := simtestutil.GenSignedMockTx(
+	tx, err := simsutils.GenSignedMockTx(
 		rand.New(rand.NewSource(time.Now().UnixNano())),
 		txCfg,
 		msgs,
 		fees,
-		simtestutil.DefaultGenTxGas,
+		simsutils.DefaultGenTxGas,
 		chainID,
 		accNums,
 		accSeqs,
@@ -340,7 +343,7 @@ func GenesisStateWithValSet(
 	bondAmt := sdk.DefaultPowerReduction
 
 	for _, val := range valSet.Validators {
-		pk, err := cryptocodec.FromTmPubKeyInterface(val.PubKey)
+		pk, err := cryptocodec.FromCmtPubKeyInterface(val.PubKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert pubkey: %w", err)
 		}
@@ -364,7 +367,7 @@ func GenesisStateWithValSet(
 			MinSelfDelegation: math.ZeroInt(),
 		}
 		validators = append(validators, validator)
-		delegations = append(delegations, stakingtypes.NewDelegation(genAccs[0].GetAddress(), val.Address.Bytes(), math.LegacyOneDec()))
+		delegations = append(delegations, stakingtypes.NewDelegation(genAccs[0].GetAddress().String(), sdk.ValAddress(val.Address).String(), math.LegacyOneDec()))
 	}
 
 	// set validators and delegations

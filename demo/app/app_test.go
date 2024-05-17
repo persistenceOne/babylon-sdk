@@ -1,12 +1,13 @@
 package app
 
 import (
-	"os"
+	"fmt"
 	"testing"
 
+	"cosmossdk.io/log"
 	"github.com/CosmWasm/wasmd/x/wasm"
-	dbm "github.com/cometbft/cometbft-db"
-	"github.com/cometbft/cometbft/libs/log"
+	abci "github.com/cometbft/cometbft/abci/types"
+	dbm "github.com/cosmos/cosmos-db"
 	"github.com/stretchr/testify/require"
 
 	simtestutil "github.com/cosmos/cosmos-sdk/testutil/sims"
@@ -15,36 +16,45 @@ import (
 
 var emptyWasmOpts []wasm.Option
 
-func TestBcdExport(t *testing.T) {
+// adapted from https://github.com/cosmos/cosmos-sdk/blob/v0.50.6/simapp/app_test.go#L47-L48
+func TestSimAppExportAndBlockedAddrs(t *testing.T) {
 	db := dbm.NewMemDB()
-	gapp := NewAppWithCustomOptions(t, false, SetupOptions{
-		Logger:  log.NewTMLogger(log.NewSyncWriter(os.Stdout)),
+	logger := log.NewTestLogger(t)
+	app := NewAppWithCustomOptions(t, false, SetupOptions{
+		Logger:  logger.With("instance", "first"),
 		DB:      db,
 		AppOpts: simtestutil.NewAppOptionsWithFlagHome(t.TempDir()),
 	})
-	gapp.Commit()
+
+	// BlockedAddresses returns a map of addresses in app v1 and a map of modules name in app v2.
+	for acc := range BlockedAddresses() {
+		var addr sdk.AccAddress
+		if modAddr, err := sdk.AccAddressFromBech32(acc); err == nil {
+			addr = modAddr
+		} else {
+			addr = app.AccountKeeper.GetModuleAddress(acc)
+		}
+
+		require.True(
+			t,
+			app.BankKeeper.BlockedAddr(addr),
+			fmt.Sprintf("ensure that blocked addresses are properly set in bank keeper: %s should be blocked", acc),
+		)
+	}
+
+	// finalize block so we have CheckTx state set
+	_, err := app.FinalizeBlock(&abci.RequestFinalizeBlock{
+		Height: 1,
+	})
+	require.NoError(t, err)
+
+	_, err = app.Commit()
+	require.NoError(t, err)
 
 	// Making a new app object with the db, so that initchain hasn't been called
-	newGapp := NewConsumerApp(log.NewTMLogger(log.NewSyncWriter(os.Stdout)), db, nil, true, simtestutil.NewAppOptionsWithFlagHome(t.TempDir()), emptyWasmOpts)
-	_, err := newGapp.ExportAppStateAndValidators(false, []string{}, nil)
+	app2 := NewConsumerApp(logger, db, nil, true, simtestutil.NewAppOptionsWithFlagHome(t.TempDir()), emptyWasmOpts)
+	_, err = app2.ExportAppStateAndValidators(false, []string{}, []string{})
 	require.NoError(t, err, "ExportAppStateAndValidators should not have an error")
-}
-
-// ensure that blocked addresses are properly set in bank keeper
-func TestBlockedAddrs(t *testing.T) {
-	gapp := Setup(t)
-
-	for acc := range BlockedAddresses() {
-		t.Run(acc, func(t *testing.T) {
-			var addr sdk.AccAddress
-			if modAddr, err := sdk.AccAddressFromBech32(acc); err == nil {
-				addr = modAddr
-			} else {
-				addr = gapp.AccountKeeper.GetModuleAddress(acc)
-			}
-			require.True(t, gapp.BankKeeper.BlockedAddr(addr), "ensure that blocked addresses are properly set in bank keeper")
-		})
-	}
 }
 
 func TestGetMaccPerms(t *testing.T) {
