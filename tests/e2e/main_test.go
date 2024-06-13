@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"encoding/json"
 	"math/rand"
 	"testing"
 	"time"
@@ -9,7 +10,6 @@ import (
 	"github.com/babylonchain/babylon-sdk/demo/app"
 	appparams "github.com/babylonchain/babylon-sdk/demo/app/params"
 	"github.com/babylonchain/babylon-sdk/tests/e2e/types"
-	zctypes "github.com/babylonchain/babylon/x/zoneconcierge/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	ibctesting2 "github.com/cosmos/ibc-go/v8/testing"
 	"github.com/stretchr/testify/suite"
@@ -104,12 +104,9 @@ func (s *BabylonSDKTestSuite) Test1ContractDeployment() {
 }
 
 // TestExample is an example test case
-func (s *BabylonSDKTestSuite) Test2MockFinalityProvider() {
-	t := s.T()
-
-	// mock message
-	msg := types.GenIBCPacket(t, r)
-	msgBytes, err := zctypes.ModuleCdc.MarshalJSON(msg)
+func (s *BabylonSDKTestSuite) Test2MockConsumerFpDelegation() {
+	msg := types.GenExecMessage()
+	msgBytes, err := json.Marshal(msg)
 	s.NoError(err)
 
 	// send msg to BTC staking contract via admin account
@@ -117,9 +114,14 @@ func (s *BabylonSDKTestSuite) Test2MockFinalityProvider() {
 	s.NoError(err)
 
 	// ensure the finality provider is on consumer chain
-	resp, err := s.ConsumerCli.Query(s.ConsumerContract.BTCStaking, Query{"finality_providers": {}})
+	consumerFps, err := s.ConsumerCli.Query(s.ConsumerContract.BTCStaking, Query{"finality_providers": {}})
 	s.NoError(err)
-	s.NotEmpty(resp)
+	s.NotEmpty(consumerFps)
+
+	// ensure delegations are on consumer chain
+	consumerDels, err := s.ConsumerCli.Query(s.ConsumerContract.BTCStaking, Query{"delegations": {}})
+	s.NoError(err)
+	s.NotEmpty(consumerDels)
 }
 
 // TODO: trigger BeginBlock via s.ConsumerChain rather than ConsumerApp
