@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 
@@ -9,15 +10,40 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
-// SendBeginBlockMsg sends a BeginBlock sudo message to the BTC staking contract via sudo
-func (k Keeper) SendBeginBlockMsg(ctx sdk.Context) error {
+func (k Keeper) getBTCStakingContractAddr(ctx sdk.Context) sdk.AccAddress {
 	// get address of the BTC staking contract
 	addrStr := k.GetParams(ctx).BtcStakingContractAddress
 	if len(addrStr) == 0 {
 		// the BTC staking contract address is not set yet, skip sending BeginBlockMsg
 		return nil
 	}
-	addr := sdk.MustAccAddressFromBech32(addrStr)
+	addr, err := sdk.AccAddressFromBech32(addrStr)
+	if err != nil {
+		// Although this is a programming error so we should panic, we emit
+		// a warning message to minimise the impact on the consumer chain's operation
+		k.Logger(ctx).Warn("the BTC staking contract address is malformed", "contract", addrStr, "error", err)
+		return nil
+	}
+	if !k.wasm.HasContractInfo(ctx, addr) {
+		// NOTE: it's possible that the default contract address does not correspond to
+		// any contract. We emit a warning message rather than panic to minimise the
+		// impact on the consumer chain's operation
+		k.Logger(ctx).Warn("the BTC staking contract address is not on-chain", "contract", addrStr)
+		return nil
+	}
+
+	return addr
+}
+
+// SendBeginBlockMsg sends a BeginBlock sudo message to the BTC staking contract via sudo
+func (k Keeper) SendBeginBlockMsg(c context.Context) error {
+	ctx := sdk.UnwrapSDKContext(c)
+
+	// try to get and parse BTC staking contract
+	addr := k.getBTCStakingContractAddr(ctx)
+	if addr == nil {
+		return nil
+	}
 
 	// construct the sudo message
 	headerInfo := ctx.HeaderInfo()
@@ -33,14 +59,14 @@ func (k Keeper) SendBeginBlockMsg(ctx sdk.Context) error {
 }
 
 // SendEndBlockMsg sends a EndBlock sudo message to the BTC staking contract via sudo
-func (k Keeper) SendEndBlockMsg(ctx sdk.Context) error {
-	// get address of the BTC staking contract
-	addrStr := k.GetParams(ctx).BtcStakingContractAddress
-	if len(addrStr) == 0 {
-		// the BTC staking contract address is not set yet, skip sending EndBlockMsg
+func (k Keeper) SendEndBlockMsg(c context.Context) error {
+	ctx := sdk.UnwrapSDKContext(c)
+
+	// try to get and parse BTC staking contract
+	addr := k.getBTCStakingContractAddr(ctx)
+	if addr == nil {
 		return nil
 	}
-	addr := sdk.MustAccAddressFromBech32(addrStr)
 
 	// construct the sudo message
 	headerInfo := ctx.HeaderInfo()
@@ -61,6 +87,7 @@ func (k Keeper) doSudoCall(ctx sdk.Context, contractAddr sdk.AccAddress, msg con
 	if err != nil {
 		return errorsmod.Wrap(err, "marshal sudo msg")
 	}
-	_, err = k.wasm.Sudo(ctx, contractAddr, bz)
+	resp, err := k.wasm.Sudo(ctx, contractAddr, bz)
+	k.Logger(ctx).Debug("response of sudo call %v to contract %s: %v", bz, contractAddr.String(), resp)
 	return err
 }
