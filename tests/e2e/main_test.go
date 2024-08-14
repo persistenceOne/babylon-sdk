@@ -93,20 +93,38 @@ func (s *BabylonSDKTestSuite) Test1ContractDeployment() {
 	s.NoError(err)
 	s.Equal(adminResp["admin"], s.ConsumerCli.GetSender().String())
 
+	// get Babylon contract address
+	babylonContractAddress := s.ConsumerContract.Babylon.String()
+	btcStakingContractAddress := s.ConsumerContract.BTCStaking.String()
+
 	// update the contract address in parameters
 	msgUpdateParams := &bbntypes.MsgUpdateParams{
 		Authority: s.ConsumerApp.BabylonKeeper.GetAuthority(),
 		Params: bbntypes.Params{
 			MaxGasBeginBlocker:        500_000,
-			BabylonContractAddress:    s.ConsumerContract.Babylon.String(),
-			BtcStakingContractAddress: s.ConsumerContract.BTCStaking.String(),
+			BabylonContractAddress:    babylonContractAddress,
+			BtcStakingContractAddress: btcStakingContractAddress,
 		},
 	}
 	s.ConsumerCli.MustExecGovProposal(msgUpdateParams)
+
+	// assert the contract addresses are updated
+	params := s.ConsumerApp.BabylonKeeper.GetParams(s.ConsumerChain.GetContext())
+	s.Equal(babylonContractAddress, params.BabylonContractAddress)
+	s.Equal(btcStakingContractAddress, params.BtcStakingContractAddress)
 }
 
 // TestExample is an example test case
 func (s *BabylonSDKTestSuite) Test2MockConsumerFpDelegation() {
+	// generate headers
+	headersMsg := types.GenBTCHeadersMsg()
+	headersMsgBytes, err := json.Marshal(headersMsg)
+	s.NoError(err)
+	// send headers to the Babylon contract. This is to ensure that the contract is
+	// indexing BTC headers correctly.
+	res, err := s.ConsumerCli.Exec(s.ConsumerContract.Babylon, headersMsgBytes)
+	s.NoError(err, res)
+
 	testMsg = types.GenExecMessage()
 	msgBytes, err := json.Marshal(testMsg)
 	s.NoError(err)
