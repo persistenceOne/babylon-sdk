@@ -27,8 +27,8 @@ const ConsensusVersion = 1
 var (
 	_ appmodule.AppModule       = AppModule{}
 	_ appmodule.HasBeginBlocker = AppModule{}
-	_ module.HasABCIEndBlock    = AppModule{}
-	_ module.AppModuleBasic     = AppModuleBasic{}
+	//_ module.HasABCIEndBlock    = AppModule{}
+	_ module.AppModuleBasic = AppModuleBasic{}
 )
 
 // AppModuleBasic defines the basic application module used by the babylon module.

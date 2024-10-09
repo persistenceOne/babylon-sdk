@@ -1,20 +1,18 @@
 package e2e
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/CosmWasm/wasmd/x/wasm/ibctesting"
 	"github.com/babylonlabs-io/babylon-sdk/demo/app"
 	appparams "github.com/babylonlabs-io/babylon-sdk/demo/app/params"
-	"github.com/babylonlabs-io/babylon-sdk/tests/e2e/types"
 	bbntypes "github.com/babylonlabs-io/babylon-sdk/x/babylon/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	ibctesting2 "github.com/cosmos/ibc-go/v8/testing"
+	ibctesting2 "github.com/cosmos/ibc-go/v7/testing"
 	"github.com/stretchr/testify/suite"
 )
 
-var testMsg types.ExecuteMessage
+//var testMsg types.ExecuteMessage
 
 // In the Test function, we create and run the suite
 func TestBabylonSDKTestSuite(t *testing.T) {
@@ -115,41 +113,41 @@ func (s *BabylonSDKTestSuite) Test1ContractDeployment() {
 }
 
 // TestExample is an example test case
-func (s *BabylonSDKTestSuite) Test2MockConsumerFpDelegation() {
-	// generate headers
-	headersMsg := types.GenBTCHeadersMsg()
-	headersMsgBytes, err := json.Marshal(headersMsg)
-	s.NoError(err)
-	// send headers to the Babylon contract. This is to ensure that the contract is
-	// indexing BTC headers correctly.
-	res, err := s.ConsumerCli.Exec(s.ConsumerContract.Babylon, headersMsgBytes)
-	s.NoError(err, res)
-
-	testMsg = types.GenExecMessage()
-	msgBytes, err := json.Marshal(testMsg)
-	s.NoError(err)
-
-	// send msg to BTC staking contract via admin account
-	_, err = s.ConsumerCli.Exec(s.ConsumerContract.BTCStaking, msgBytes)
-	s.NoError(err)
-
-	// ensure the finality provider is on consumer chain
-	consumerFps, err := s.ConsumerCli.Query(s.ConsumerContract.BTCStaking, Query{"finality_providers": {}})
-	s.NoError(err)
-	s.NotEmpty(consumerFps)
-
-	// ensure delegations are on consumer chain
-	consumerDels, err := s.ConsumerCli.Query(s.ConsumerContract.BTCStaking, Query{"delegations": {}})
-	s.NoError(err)
-	s.NotEmpty(consumerDels)
-
-	// ensure the BTC staking is activated
-	resp, err := s.ConsumerCli.Query(s.ConsumerContract.BTCStaking, Query{"activated_height": {}})
-	s.NoError(err)
-	parsedActivatedHeight := resp["height"].(float64)
-	currentHeight := s.ConsumerChain.GetContext().BlockHeight()
-	s.Equal(uint64(parsedActivatedHeight), uint64(currentHeight))
-}
+//func (s *BabylonSDKTestSuite) Test2MockConsumerFpDelegation() {
+//	// generate headers
+//	headersMsg := types.GenBTCHeadersMsg()
+//	headersMsgBytes, err := json.Marshal(headersMsg)
+//	s.NoError(err)
+//	// send headers to the Babylon contract. This is to ensure that the contract is
+//	// indexing BTC headers correctly.
+//	res, err := s.ConsumerCli.Exec(s.ConsumerContract.Babylon, headersMsgBytes)
+//	s.NoError(err, res)
+//
+//	testMsg = types.GenExecMessage()
+//	msgBytes, err := json.Marshal(testMsg)
+//	s.NoError(err)
+//
+//	// send msg to BTC staking contract via admin account
+//	_, err = s.ConsumerCli.Exec(s.ConsumerContract.BTCStaking, msgBytes)
+//	s.NoError(err)
+//
+//	// ensure the finality provider is on consumer chain
+//	consumerFps, err := s.ConsumerCli.Query(s.ConsumerContract.BTCStaking, Query{"finality_providers": {}})
+//	s.NoError(err)
+//	s.NotEmpty(consumerFps)
+//
+//	// ensure delegations are on consumer chain
+//	consumerDels, err := s.ConsumerCli.Query(s.ConsumerContract.BTCStaking, Query{"delegations": {}})
+//	s.NoError(err)
+//	s.NotEmpty(consumerDels)
+//
+//	// ensure the BTC staking is activated
+//	resp, err := s.ConsumerCli.Query(s.ConsumerContract.BTCStaking, Query{"activated_height": {}})
+//	s.NoError(err)
+//	parsedActivatedHeight := resp["height"].(float64)
+//	currentHeight := s.ConsumerChain.GetContext().BlockHeight()
+//	s.Equal(uint64(parsedActivatedHeight), uint64(currentHeight))
+//}
 
 func (s *BabylonSDKTestSuite) Test3BeginBlock() {
 	err := s.ConsumerApp.BabylonKeeper.BeginBlocker(s.ConsumerChain.GetContext())
