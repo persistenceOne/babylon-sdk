@@ -1,32 +1,26 @@
 package keeper_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
-	"cosmossdk.io/log"
-	"cosmossdk.io/store"
-	storemetrics "cosmossdk.io/store/metrics"
-	storetypes "cosmossdk.io/store/types"
-	evidencetypes "cosmossdk.io/x/evidence/types"
-	"cosmossdk.io/x/feegrant"
-	upgradekeeper "cosmossdk.io/x/upgrade/keeper"
-	upgradetypes "cosmossdk.io/x/upgrade/types"
 	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
 	"github.com/CosmWasm/wasmd/x/wasm/keeper/wasmtesting"
 	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
+	dbm "github.com/cometbft/cometbft-db"
+	"github.com/cometbft/cometbft/libs/log"
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
-	dbm "github.com/cosmos/cosmos-db"
 	"github.com/cosmos/cosmos-sdk/baseapp"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
-	"github.com/cosmos/cosmos-sdk/runtime"
 	"github.com/cosmos/cosmos-sdk/std"
+	"github.com/cosmos/cosmos-sdk/store"
+	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
 	"github.com/cosmos/cosmos-sdk/x/auth"
-	authcodec "github.com/cosmos/cosmos-sdk/x/auth/codec"
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
 	"github.com/cosmos/cosmos-sdk/x/auth/tx"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
@@ -34,8 +28,12 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/bank"
 	bankkeeper "github.com/cosmos/cosmos-sdk/x/bank/keeper"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
+	capabilitykeeper "github.com/cosmos/cosmos-sdk/x/capability/keeper"
+	capabilitytypes "github.com/cosmos/cosmos-sdk/x/capability/types"
 	distributionkeeper "github.com/cosmos/cosmos-sdk/x/distribution/keeper"
 	distributiontypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
+	evidencetypes "github.com/cosmos/cosmos-sdk/x/evidence/types"
+	"github.com/cosmos/cosmos-sdk/x/feegrant"
 	"github.com/cosmos/cosmos-sdk/x/gov"
 	govclient "github.com/cosmos/cosmos-sdk/x/gov/client"
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
@@ -49,11 +47,11 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/staking"
 	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
-	capabilitykeeper "github.com/cosmos/ibc-go/modules/capability/keeper"
-	capabilitytypes "github.com/cosmos/ibc-go/modules/capability/types"
-	ibctransfertypes "github.com/cosmos/ibc-go/v8/modules/apps/transfer/types"
-	ibcexported "github.com/cosmos/ibc-go/v8/modules/core/exported"
-	ibckeeper "github.com/cosmos/ibc-go/v8/modules/core/keeper"
+	upgradekeeper "github.com/cosmos/cosmos-sdk/x/upgrade/keeper"
+	upgradetypes "github.com/cosmos/cosmos-sdk/x/upgrade/types"
+	ibctransfertypes "github.com/cosmos/ibc-go/v7/modules/apps/transfer/types"
+	ibcexported "github.com/cosmos/ibc-go/v7/modules/core/exported"
+	ibckeeper "github.com/cosmos/ibc-go/v7/modules/core/keeper"
 	"github.com/stretchr/testify/require"
 
 	"github.com/babylonlabs-io/babylon-sdk/x/babylon/keeper"
@@ -113,10 +111,10 @@ type TestKeepers struct {
 }
 
 func NewTestKeepers(t testing.TB, opts ...keeper.Option) TestKeepers {
-	db := dbm.NewMemDB()
-	ms := store.NewCommitMultiStore(db, log.NewTestLogger(t), storemetrics.NewNoOpMetrics())
+	db, _ := dbm.NewDB("tempdb", dbm.MemDBBackend, "")
+	ms := store.NewCommitMultiStore(db)
 
-	keys := storetypes.NewKVStoreKeys(
+	keys := sdk.NewKVStoreKeys(
 		authtypes.StoreKey, banktypes.StoreKey, stakingtypes.StoreKey,
 		minttypes.StoreKey, distributiontypes.StoreKey, slashingtypes.StoreKey,
 		govtypes.StoreKey, paramstypes.StoreKey, ibcexported.StoreKey, upgradetypes.StoreKey,
@@ -127,11 +125,11 @@ func NewTestKeepers(t testing.TB, opts ...keeper.Option) TestKeepers {
 	for _, v := range keys {
 		ms.MountStoreWithDB(v, storetypes.StoreTypeIAVL, db)
 	}
-	memKeys := storetypes.NewMemoryStoreKeys(capabilitytypes.MemStoreKey, types.MemStoreKey)
+	memKeys := sdk.NewMemoryStoreKeys(capabilitytypes.MemStoreKey, types.MemStoreKey)
 	for _, v := range memKeys {
 		ms.MountStoreWithDB(v, storetypes.StoreTypeMemory, db)
 	}
-	tkeys := storetypes.NewTransientStoreKeys(paramstypes.TStoreKey)
+	tkeys := sdk.NewTransientStoreKeys(paramstypes.TStoreKey)
 	for _, v := range tkeys {
 		ms.MountStoreWithDB(v, storetypes.StoreTypeTransient, db)
 	}
@@ -153,10 +151,9 @@ func NewTestKeepers(t testing.TB, opts ...keeper.Option) TestKeepers {
 	authority := authtypes.NewModuleAddress(govtypes.ModuleName).String()
 	accountKeeper := authkeeper.NewAccountKeeper(
 		appCodec,
-		runtime.NewKVStoreService(keys[authtypes.StoreKey]), // target store
-		authtypes.ProtoBaseAccount,                          // prototype
+		keys[authtypes.StoreKey],   // target store
+		authtypes.ProtoBaseAccount, // prototype
 		maccPerms,
-		authcodec.NewBech32Codec(sdk.Bech32MainPrefix),
 		sdk.Bech32MainPrefix,
 		authority,
 	)
@@ -171,29 +168,26 @@ func NewTestKeepers(t testing.TB, opts ...keeper.Option) TestKeepers {
 
 	bankKeeper := bankkeeper.NewBaseKeeper(
 		appCodec,
-		runtime.NewKVStoreService(keys[banktypes.StoreKey]),
+		keys[banktypes.StoreKey],
 		accountKeeper,
 		blockedAddrs,
 		authority,
-		log.NewNopLogger(),
 	)
 	require.NoError(t, bankKeeper.SetParams(ctx, banktypes.DefaultParams()))
 
 	stakingKeeper := stakingkeeper.NewKeeper(
 		appCodec,
-		runtime.NewKVStoreService(keys[stakingtypes.StoreKey]),
+		keys[stakingtypes.StoreKey],
 		accountKeeper,
 		bankKeeper,
 		authority,
-		authcodec.NewBech32Codec(sdk.Bech32MainPrefix),
-		authcodec.NewBech32Codec(sdk.Bech32MainPrefix),
 	)
 	require.NoError(t, stakingKeeper.SetParams(ctx, stakingtypes.DefaultParams()))
 
 	slashingKeeper := slashingkeeper.NewKeeper(
 		appCodec,
 		encConfig.Amino,
-		runtime.NewKVStoreService(keys[slashingtypes.StoreKey]),
+		keys[slashingtypes.StoreKey],
 		stakingKeeper,
 		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
@@ -201,7 +195,7 @@ func NewTestKeepers(t testing.TB, opts ...keeper.Option) TestKeepers {
 
 	distKeeper := distributionkeeper.NewKeeper(
 		appCodec,
-		runtime.NewKVStoreService(keys[distributiontypes.StoreKey]),
+		keys[distributiontypes.StoreKey],
 		accountKeeper,
 		bankKeeper,
 		stakingKeeper,
@@ -231,7 +225,7 @@ func NewTestKeepers(t testing.TB, opts ...keeper.Option) TestKeepers {
 
 	upgradeKeeper := upgradekeeper.NewKeeper(
 		map[int64]bool{},
-		runtime.NewKVStoreService(keys[upgradetypes.StoreKey]),
+		keys[upgradetypes.StoreKey],
 		appCodec,
 		t.TempDir(),
 		nil,
@@ -245,7 +239,6 @@ func NewTestKeepers(t testing.TB, opts ...keeper.Option) TestKeepers {
 		stakingKeeper,
 		upgradeKeeper,
 		scopedIBCKeeper,
-		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 
 	cfg := sdk.GetConfig()
@@ -253,21 +246,21 @@ func NewTestKeepers(t testing.TB, opts ...keeper.Option) TestKeepers {
 
 	wasmKeeper := wasmkeeper.NewKeeper(
 		appCodec,
-		runtime.NewKVStoreService(keys[wasmtypes.StoreKey]),
+		(keys[wasmtypes.StoreKey]),
 		accountKeeper,
 		bankKeeper,
 		stakingKeeper,
 		distributionkeeper.NewQuerier(distKeeper),
 		ibcKeeper.ChannelKeeper, // ICS4Wrapper
 		ibcKeeper.ChannelKeeper,
-		ibcKeeper.PortKeeper,
+		&ibcKeeper.PortKeeper,
 		scopedWasmKeeper,
 		wasmtesting.MockIBCTransferKeeper{},
 		msgRouter,
 		querier,
 		t.TempDir(),
 		wasmtypes.DefaultWasmConfig(),
-		[]string{"iterator", "staking", "stargate", "cosmwasm_1_1", "cosmwasm_1_2", "cosmwasm_1_3", "virtual_staking"},
+		strings.Join([]string{"iterator", "staking", "stargate", "cosmwasm_1_1", "cosmwasm_1_2", "cosmwasm_1_3", "virtual_staking"}, ","),
 		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 	require.NoError(t, wasmKeeper.SetParams(ctx, wasmtypes.DefaultParams()))

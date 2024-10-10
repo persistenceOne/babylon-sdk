@@ -2,7 +2,7 @@
 
 PACKAGES_SIMTEST=$(shell go list ./... | grep '/simulation')
 COMMIT := $(shell git log -1 --format='%H')
-LEDGER_ENABLED ?= true
+LEDGER_ENABLED ?= false
 BINDIR ?= $(GOPATH)/bin
 BUILD_DIR = ./build
 

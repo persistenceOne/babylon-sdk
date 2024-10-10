@@ -1,8 +1,8 @@
 package keeper
 
 import (
-	storetypes "cosmossdk.io/store/types"
 	"github.com/babylonlabs-io/babylon-sdk/x/babylon/types"
+	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 

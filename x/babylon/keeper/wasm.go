@@ -21,14 +21,14 @@ func (k Keeper) getBTCStakingContractAddr(ctx sdk.Context) sdk.AccAddress {
 	if err != nil {
 		// Although this is a programming error so we should panic, we emit
 		// a warning message to minimise the impact on the consumer chain's operation
-		k.Logger(ctx).Warn("the BTC staking contract address is malformed", "contract", addrStr, "error", err)
+		k.Logger(ctx).Error("the BTC staking contract address is malformed", "contract", addrStr, "error", err)
 		return nil
 	}
 	if !k.wasm.HasContractInfo(ctx, addr) {
 		// NOTE: it's possible that the default contract address does not correspond to
 		// any contract. We emit a warning message rather than panic to minimise the
 		// impact on the consumer chain's operation
-		k.Logger(ctx).Warn("the BTC staking contract address is not on-chain", "contract", addrStr)
+		k.Logger(ctx).Error("the BTC staking contract address is not on-chain", "contract", addrStr)
 		return nil
 	}
 
@@ -46,10 +46,10 @@ func (k Keeper) SendBeginBlockMsg(c context.Context) error {
 	}
 
 	// construct the sudo message
-	headerInfo := ctx.HeaderInfo()
+	headerInfo := ctx.BlockHeader()
 	msg := contract.SudoMsg{
 		BeginBlockMsg: &contract.BeginBlock{
-			HashHex:    hex.EncodeToString(headerInfo.Hash),
+			HashHex:    hex.EncodeToString(ctx.HeaderHash()),
 			AppHashHex: hex.EncodeToString(headerInfo.AppHash),
 		},
 	}
@@ -69,10 +69,10 @@ func (k Keeper) SendEndBlockMsg(c context.Context) error {
 	}
 
 	// construct the sudo message
-	headerInfo := ctx.HeaderInfo()
+	headerInfo := ctx.BlockHeader()
 	msg := contract.SudoMsg{
 		EndBlockMsg: &contract.EndBlock{
-			HashHex:    hex.EncodeToString(headerInfo.Hash),
+			HashHex:    hex.EncodeToString(ctx.HeaderHash()),
 			AppHashHex: hex.EncodeToString(headerInfo.AppHash),
 		},
 	}

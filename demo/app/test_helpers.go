@@ -9,18 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"cosmossdk.io/log"
 	"cosmossdk.io/math"
-	pruningtypes "cosmossdk.io/store/pruning/types"
-	"cosmossdk.io/store/snapshots"
-	snapshottypes "cosmossdk.io/store/snapshots/types"
 	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
+	dbm "github.com/cometbft/cometbft-db"
 	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/cometbft/cometbft/crypto/ed25519"
 	tmjson "github.com/cometbft/cometbft/libs/json"
-	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
+	"github.com/cometbft/cometbft/libs/log"
 	tmtypes "github.com/cometbft/cometbft/types"
-	dbm "github.com/cosmos/cosmos-db"
 	bam "github.com/cosmos/cosmos-sdk/baseapp"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/flags"
@@ -31,6 +27,9 @@ import (
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	"github.com/cosmos/cosmos-sdk/server"
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
+	"github.com/cosmos/cosmos-sdk/snapshots"
+	snapshottypes "github.com/cosmos/cosmos-sdk/snapshots/types"
+	pruningtypes "github.com/cosmos/cosmos-sdk/store/pruning/types"
 	"github.com/cosmos/cosmos-sdk/testutil/mock"
 	"github.com/cosmos/cosmos-sdk/testutil/network"
 	simsutils "github.com/cosmos/cosmos-sdk/testutil/sims"
@@ -106,9 +105,9 @@ func NewAppWithCustomOptions(t *testing.T, isCheckTx bool, options SetupOptions)
 		// Initialize the chain
 		consensusParams := simsutils.DefaultConsensusParams
 		initialHeight := app.LastBlockHeight() + 1
-		consensusParams.Abci = &cmtproto.ABCIParams{VoteExtensionsEnableHeight: initialHeight}
-		_, err = app.InitChain(
-			&abci.RequestInitChain{
+		//consensusParams.Abci = &cmtproto.ABCIParams{VoteExtensionsEnableHeight: initialHeight}
+		_ = app.InitChain(
+			abci.RequestInitChain{
 				Validators:      []abci.ValidatorUpdate{},
 				ConsensusParams: consensusParams,
 				AppStateBytes:   stateBytes,
@@ -165,8 +164,8 @@ func SetupWithGenesisValSet(t *testing.T, valSet *tmtypes.ValidatorSet, genAccs 
 	consensusParams.Block.MaxGas = 100 * simsutils.DefaultGenTxGas
 	// it is required that the VoteExtensionsEnableHeight > 0 to enable vote extension
 	initialHeight := app.LastBlockHeight() + 1
-	consensusParams.Abci = &cmtproto.ABCIParams{VoteExtensionsEnableHeight: initialHeight}
-	_, err = app.InitChain(&abci.RequestInitChain{
+	//consensusParams.Abci = &cmtproto.ABCIParams{VoteExtensionsEnableHeight: initialHeight}
+	_ = app.InitChain(abci.RequestInitChain{
 		ChainId:         app.ChainID(),
 		Time:            time.Now().UTC(),
 		Validators:      []abci.ValidatorUpdate{},
@@ -176,12 +175,12 @@ func SetupWithGenesisValSet(t *testing.T, valSet *tmtypes.ValidatorSet, genAccs 
 	})
 	require.NoError(t, err)
 
-	_, err = app.FinalizeBlock(&abci.RequestFinalizeBlock{
-		Height:             initialHeight,
-		Hash:               app.LastCommitID().Hash,
-		NextValidatorsHash: valSet.Hash(),
-	})
-	require.NoError(t, err)
+	//_, err = app.FinalizeBlock(&abci.RequestFinalizeBlock{
+	//	Height:             initialHeight,
+	//	Hash:               app.LastCommitID().Hash,
+	//	NextValidatorsHash: valSet.Hash(),
+	//})
+	//require.NoError(t, err)
 
 	return app
 }
@@ -227,10 +226,8 @@ func GenesisStateWithSingleValidator(t *testing.T, app *ConsumerApp) GenesisStat
 func AddTestAddrs(app *ConsumerApp, ctx sdk.Context, accNum int, accAmt math.Int) ([]sdk.AccAddress, error) {
 	testAddrs := createRandomAccounts(accNum)
 
-	bondDenom, err := app.StakingKeeper.BondDenom(ctx)
-	if err != nil {
-		return nil, err
-	}
+	bondDenom := app.StakingKeeper.BondDenom(ctx)
+
 	initCoins := sdk.NewCoins(sdk.NewCoin(bondDenom, accAmt))
 
 	for _, addr := range testAddrs {
@@ -343,7 +340,7 @@ func GenesisStateWithValSet(
 	bondAmt := sdk.DefaultPowerReduction
 
 	for _, val := range valSet.Validators {
-		pk, err := cryptocodec.FromCmtPubKeyInterface(val.PubKey)
+		pk, err := cryptocodec.FromTmPubKeyInterface(val.PubKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert pubkey: %w", err)
 		}
@@ -367,7 +364,7 @@ func GenesisStateWithValSet(
 			MinSelfDelegation: math.ZeroInt(),
 		}
 		validators = append(validators, validator)
-		delegations = append(delegations, stakingtypes.NewDelegation(genAccs[0].GetAddress().String(), sdk.ValAddress(val.Address).String(), math.LegacyOneDec()))
+		delegations = append(delegations, stakingtypes.NewDelegation(genAccs[0].GetAddress(), sdk.ValAddress(val.Address), math.LegacyOneDec()))
 	}
 
 	// set validators and delegations

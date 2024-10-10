@@ -3,8 +3,8 @@ package app
 import (
 	"encoding/json"
 
-	"cosmossdk.io/log"
-	dbm "github.com/cosmos/cosmos-db"
+	dbm "github.com/cometbft/cometbft-db"
+	"github.com/cometbft/cometbft/libs/log"
 	"github.com/cosmos/cosmos-sdk/codec"
 )
 
