@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"cosmossdk.io/log"
 	"github.com/CosmWasm/wasmd/x/wasm"
-	abci "github.com/cometbft/cometbft/abci/types"
-	dbm "github.com/cosmos/cosmos-db"
+	dbm "github.com/cometbft/cometbft-db"
+	"github.com/cometbft/cometbft/libs/log"
 	"github.com/stretchr/testify/require"
 
 	simtestutil "github.com/cosmos/cosmos-sdk/testutil/sims"
@@ -19,7 +18,7 @@ var emptyWasmOpts []wasm.Option
 // adapted from https://github.com/cosmos/cosmos-sdk/blob/v0.50.6/simapp/app_test.go#L47-L48
 func TestSimAppExportAndBlockedAddrs(t *testing.T) {
 	db := dbm.NewMemDB()
-	logger := log.NewTestLogger(t)
+	logger := log.NewNopLogger()
 	app := NewAppWithCustomOptions(t, false, SetupOptions{
 		Logger:  logger.With("instance", "first"),
 		DB:      db,
@@ -43,17 +42,15 @@ func TestSimAppExportAndBlockedAddrs(t *testing.T) {
 	}
 
 	// finalize block so we have CheckTx state set
-	_, err := app.FinalizeBlock(&abci.RequestFinalizeBlock{
-		Height: 1,
-	})
-	require.NoError(t, err)
+	//_, err := app.FinalizeBlock(&abci.RequestFinalizeBlock{
+	//	Height: 1,
+	//})
 
-	_, err = app.Commit()
-	require.NoError(t, err)
+	_ = app.Commit()
 
 	// Making a new app object with the db, so that initchain hasn't been called
 	app2 := NewConsumerApp(logger, db, nil, true, simtestutil.NewAppOptionsWithFlagHome(t.TempDir()), emptyWasmOpts)
-	_, err = app2.ExportAppStateAndValidators(false, []string{}, []string{})
+	_, err := app2.ExportAppStateAndValidators(false, []string{}, []string{})
 	require.NoError(t, err, "ExportAppStateAndValidators should not have an error")
 }
 

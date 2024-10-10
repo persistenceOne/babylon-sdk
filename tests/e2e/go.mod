@@ -1,6 +1,6 @@
 module github.com/babylonlabs-io/babylon-sdk/tests/e2e
 
-go 1.22
+go 1.21
 
 require (
 	github.com/CosmWasm/wasmd v0.51.0
@@ -175,10 +175,9 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.49.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.49.0 // indirect
-	go.opentelemetry.io/otel v1.30.0 // indirect
-	go.opentelemetry.io/otel/metric v1.30.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.30.0 // indirect
-	go.opentelemetry.io/otel/trace v1.30.0 // indirect
+	go.opentelemetry.io/otel v1.24.0 // indirect
+	go.opentelemetry.io/otel/metric v1.24.0 // indirect
+	go.opentelemetry.io/otel/trace v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.27.0 // indirect
 	golang.org/x/exp v0.0.0-20240404231335-c0f41cb1a7a0 // indirect
@@ -211,7 +210,7 @@ replace (
 	github.com/babylonlabs-io/babylon-sdk/x => ../../x
 
 	github.com/cometbft/cometbft => github.com/cometbft/cometbft v0.37.10
-	github.com/cosmos/cosmos-sdk => github.com/cosmos/cosmos-sdk v0.47.14
+	github.com/cosmos/cosmos-sdk => github.com/cosmos/cosmos-sdk v0.47.10
 	// dgrijalva/jwt-go is deprecated and doesn't receive security updates.
 	// See: https://github.com/cosmos/cosmos-sdk/issues/13134
 	github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt/v4 v4.4.2

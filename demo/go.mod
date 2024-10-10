@@ -1,6 +1,6 @@
 module github.com/babylonlabs-io/babylon-sdk/demo
 
-go 1.22
+go 1.21
 
 require (
 	github.com/CosmWasm/wasmd v0.45.0
@@ -31,13 +31,11 @@ require (
 require (
 	cosmossdk.io/api v0.7.5
 	cosmossdk.io/errors v1.0.1
-	cosmossdk.io/log v1.4.1
 	cosmossdk.io/math v1.3.0
 	cosmossdk.io/tools/confix v0.1.2
 	github.com/babylonlabs-io/babylon-sdk/x v0.0.0-00010101000000-000000000000
 	github.com/cometbft/cometbft v0.38.11
 	github.com/cometbft/cometbft-db v0.9.1
-	github.com/cosmos/cosmos-db v1.0.2
 	github.com/spf13/viper v1.18.2
 )
 
@@ -48,13 +46,13 @@ require (
 	cloud.google.com/go/storage v1.38.0 // indirect
 	cosmossdk.io/core v0.11.1 // indirect
 	cosmossdk.io/depinject v1.0.0 // indirect
+	cosmossdk.io/log v1.4.1 // indirect
 	cosmossdk.io/tools/rosetta v0.2.1 // indirect
 	filippo.io/edwards25519 v1.0.0 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/99designs/keyring v1.2.1 // indirect
 	github.com/ChainSafe/go-schnorrkel v1.0.0 // indirect
 	github.com/CosmWasm/wasmvm v1.5.4 // indirect
-	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/aws/aws-sdk-go v1.44.312 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -68,9 +66,7 @@ require (
 	github.com/cockroachdb/apd/v2 v2.0.2 // indirect
 	github.com/cockroachdb/errors v1.11.1 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b // indirect
-	github.com/cockroachdb/pebble v1.1.0 // indirect
 	github.com/cockroachdb/redact v1.1.5 // indirect
-	github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 // indirect
 	github.com/coinbase/rosetta-sdk-go/types v1.0.0 // indirect
 	github.com/confio/ics23/go v0.9.0 // indirect
 	github.com/cosmos/btcutil v1.0.5 // indirect
@@ -89,7 +85,6 @@ require (
 	github.com/dgryski/go-farm v0.0.0-20200201041132-a6ae2369ad13 // indirect
 	github.com/docker/distribution v2.8.2+incompatible // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/emicklei/dot v1.6.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/getsentry/sentry-go v0.27.0 // indirect
@@ -141,6 +136,7 @@ require (
 	github.com/manifoldco/promptui v0.9.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mimoo/StrobeGo v0.0.0-20210601165009-122bf33a46e0 // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
@@ -208,7 +204,8 @@ replace (
 	github.com/babylonlabs-io/babylon-sdk/x => ../x
 
 	github.com/cometbft/cometbft => github.com/cometbft/cometbft v0.37.10
-	github.com/cosmos/cosmos-sdk => github.com/cosmos/cosmos-sdk v0.47.14
+	github.com/cosmos/cosmos-sdk => github.com/cosmos/cosmos-sdk v0.47.10
+	github.com/cosmos/iavl v1.1.2 => github.com/cosmos/iavl v0.20.0
 	// dgrijalva/jwt-go is deprecated and doesn't receive security updates.
 	// See: https://github.com/cosmos/cosmos-sdk/issues/13134
 	github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt/v4 v4.4.2
@@ -216,8 +213,15 @@ replace (
 	// See: https://github.com/cosmos/cosmos-sdk/issues/10409
 	github.com/gin-gonic/gin => github.com/gin-gonic/gin v1.8.1
 
+	github.com/prometheus/client_golang => github.com/prometheus/client_golang v1.16.0
+	github.com/prometheus/client_model => github.com/prometheus/client_model v0.3.0
+
+	github.com/prometheus/common => github.com/prometheus/common v0.42.0
+
 	// pin version! 126854af5e6d has issues with the store so that queries fail
 	github.com/syndtr/goleveldb => github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
+
+	golang.org/x/exp => golang.org/x/exp v0.0.0-20230711153332-06a737ee72cb
 
 	// avoid v1.66 that has a breaking change for protobuf. That change breaks the relayer.
 	// https://github.com/grpc/grpc-go/issues/7569

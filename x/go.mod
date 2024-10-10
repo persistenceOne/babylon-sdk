@@ -1,11 +1,11 @@
 module github.com/babylonlabs-io/babylon-sdk/x
 
-go 1.22
+go 1.21
 
 require (
 	github.com/CosmWasm/wasmd v0.45.0
 	github.com/cosmos/cosmos-proto v1.0.0-beta.5
-	github.com/cosmos/cosmos-sdk v0.47.14
+	github.com/cosmos/cosmos-sdk v0.47.12
 	github.com/cosmos/gogogateway v1.2.0 // indirect
 	github.com/cosmos/gogoproto v1.7.0
 	github.com/cosmos/iavl v1.1.2 // indirect
@@ -207,7 +207,7 @@ replace (
 
 	github.com/cometbft/cometbft => github.com/cometbft/cometbft v0.37.10
 
-	github.com/cosmos/cosmos-sdk => github.com/cosmos/cosmos-sdk v0.47.14
+	github.com/cosmos/cosmos-sdk => github.com/cosmos/cosmos-sdk v0.47.10
 	// dgrijalva/jwt-go is deprecated and doesn't receive security updates.
 	// See: https://github.com/cosmos/cosmos-sdk/issues/13134
 	github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt/v4 v4.4.2

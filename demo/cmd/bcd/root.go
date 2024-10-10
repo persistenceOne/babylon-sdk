@@ -5,15 +5,16 @@ import (
 	"io"
 	"os"
 
-	"cosmossdk.io/log"
 	confixcmd "cosmossdk.io/tools/confix/cmd"
 	"github.com/CosmWasm/wasmd/x/wasm"
 	wasmkeeper "github.com/CosmWasm/wasmd/x/wasm/keeper"
 	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	"github.com/babylonlabs-io/babylon-sdk/demo/app"
 	"github.com/babylonlabs-io/babylon-sdk/demo/app/params"
+	dbm "github.com/cometbft/cometbft-db"
 	tmcfg "github.com/cometbft/cometbft/config"
-	dbm "github.com/cosmos/cosmos-db"
+	"github.com/cometbft/cometbft/libs/log"
+	//dbm "github.com/cosmos/cosmos-db"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/config"
 	"github.com/cosmos/cosmos-sdk/client/debug"
@@ -148,11 +149,11 @@ func initRootCmd(rootCmd *cobra.Command, basicManager module.BasicManager) {
 
 	// add keybase, auxiliary RPC, query, and tx child commands
 	rootCmd.AddCommand(
-		server.StatusCommand(),
+		//server.StatusCommand(),
 		genesisCommand(),
 		queryCommand(),
 		txCommand(),
-		keys.Commands(),
+		keys.Commands(app.DefaultNodeHome),
 	)
 }
 
@@ -188,11 +189,11 @@ func queryCommand() *cobra.Command {
 	cmd.AddCommand(
 		rpc.QueryEventForTxCmd(),
 		rpc.ValidatorCommand(),
-		server.QueryBlockCmd(),
+		//server.QueryBlockCmd(),
 		authcmd.QueryTxsByEventsCmd(),
-		server.QueryBlocksCmd(),
+		//server.QueryBlocksCmd(),
 		authcmd.QueryTxCmd(),
-		server.QueryBlockResultsCmd(),
+		//server.QueryBlockResultsCmd(),
 	)
 
 	tempApp := app.NewTmpApp()
@@ -220,7 +221,7 @@ func txCommand() *cobra.Command {
 		authcmd.GetBroadcastCommand(),
 		authcmd.GetEncodeCommand(),
 		authcmd.GetDecodeCommand(),
-		authcmd.GetSimulateCmd(),
+		//authcmd.GetSimulateCmd(),
 	)
 
 	tempApp := app.NewTmpApp()
